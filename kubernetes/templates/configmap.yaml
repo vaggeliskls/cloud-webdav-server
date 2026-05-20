@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "cloud-webdav-server.labels" . | nindent 4 }}
 data:
-  SERVER_NAME: {{ .Values.serverName | quote }}
   SERVER_PORT: {{ .Values.serverPort | quote }}
   LOG_LEVEL: {{ .Values.logLevel | quote }}
 

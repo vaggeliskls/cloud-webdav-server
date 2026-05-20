@@ -4,11 +4,10 @@ All configuration is via environment variables. The Helm chart and `docker-compo
 
 ## Server
 
-| Variable      | Default     | Description                              |
-|---------------|-------------|------------------------------------------|
-| `SERVER_NAME` | `localhost` | Cosmetic — used in some response headers |
-| `SERVER_PORT` | `8080`      | TCP port the HTTP server binds to        |
-| `LOG_LEVEL`   | `info`      | `info` or `debug`                        |
+| Variable      | Default | Description                       |
+|---------------|---------|-----------------------------------|
+| `SERVER_PORT` | `8080`  | TCP port the HTTP server binds to |
+| `LOG_LEVEL`   | `info`  | `info` or `debug`                 |
 
 ## Storage
 
