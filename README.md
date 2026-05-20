@@ -10,7 +10,7 @@ Mount **Amazon S3**, **Google Cloud Storage**, **Azure Blob Storage**, or a **lo
 
 > **Inspired by** [vaggeliskls/webdav-server](https://github.com/vaggeliskls/webdav-server) — if you don't need cloud storage, check out that project for a simpler Docker-based WebDAV server with Basic, LDAP, and OAuth/OIDC support.
 
-> ⭐ Find this useful? [Star the repo](https://github.com/vaggeliskls/cloud-webdav-server) — it helps others discover the project.
+> ⭐ Find this useful? Star the repo — it helps others discover the project.
 
 ---
 
