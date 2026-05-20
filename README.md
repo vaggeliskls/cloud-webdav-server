@@ -10,6 +10,8 @@ Mount **Amazon S3**, **Google Cloud Storage**, **Azure Blob Storage**, or a **lo
 
 > **Inspired by** [vaggeliskls/webdav-server](https://github.com/vaggeliskls/webdav-server) — if you don't need cloud storage, check out that project for a simpler Docker-based WebDAV server with Basic, LDAP, and OAuth/OIDC support.
 
+> ⭐ Find this useful? [Star the repo](https://github.com/vaggeliskls/cloud-webdav-server) — it helps others discover the project.
+
 ---
 
 ## Features
@@ -32,7 +34,7 @@ Mount **Amazon S3**, **Google Cloud Storage**, **Azure Blob Storage**, or a **lo
 
 ```sh
 cp .env.example .env   # edit as needed
-docker compose up
+docker compose up --build
 ```
 
 The server listens on `http://localhost:8080`. Try it:
@@ -66,6 +68,7 @@ Full docs are published at **<https://vaggeliskls.github.io/cloud-webdav-server>
 
 **Reference**
 - [Configuration](docs/configuration.md) — full environment-variable reference for every backend and auth provider
+- [Examples](docs/examples.md) — ready-to-use `docker-compose.yml` snippets for every storage backend and auth pattern
 
 ---
 

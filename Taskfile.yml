@@ -8,8 +8,18 @@ tasks:
     desc: Show available tasks
     cmd: task --list
 
+  setup:
+    desc: Create .env from .env.example if it doesn't exist (cross-platform)
+    cmds:
+      - cp .env.example .env
+    status:
+      - test -f .env
+
   run:
     desc: Run the server locally (loads .env)
+    preconditions:
+      - sh: test -f .env
+        msg: ".env not found — run `task setup` first"
     dotenv: [".env"]
     cmd: go run {{.CMD}}
 

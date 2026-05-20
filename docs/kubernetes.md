@@ -199,6 +199,10 @@ resources:
 
 The server is small (~10 MB binary) and CPU-bound only during large file transfers. Scale `limits.memory` if you expect frequent multi-GiB uploads on the in-memory buffering path (planned to switch to streaming).
 
+## Replicas
+
+Keep `replicaCount: 1` unless you're on cloud storage *and* don't rely on WebDAV locking. The server's `LockSystem` is in-memory: each replica has its own lock table, so concurrent clients on different pods can grab conflicting locks. The local-storage backend additionally requires a single replica because the PVC is `RWO`.
+
 ## Upgrade / uninstall
 
 ```sh

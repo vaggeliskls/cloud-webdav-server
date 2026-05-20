@@ -89,6 +89,8 @@ FOLDER_PERMISSIONS=/public:public:ro,/files:*:rw,/admin:alice:rw
 
 These define what `ro` and `rw` modes allow. Override only if you have very specific compliance needs — the defaults match the WebDAV RFC.
 
+> **Locking is in-memory.** `LOCK`/`UNLOCK` are handled via `webdav.NewMemLS()` — locks don't persist across restarts and aren't shared across replicas. For HA deployments where WebDAV locking matters, stick to a single instance.
+
 ## Authentication
 
 ### Basic auth

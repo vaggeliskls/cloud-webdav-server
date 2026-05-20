@@ -13,7 +13,7 @@ Run the server on your machine, optionally against a local cloud emulator (MinIO
 The fastest way to start: storage on disk, basic auth, two test users.
 
 ```sh
-cp .env.example .env
+task setup   # creates .env from .env.example (no-op if .env exists)
 task run
 ```
 

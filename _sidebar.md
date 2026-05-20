@@ -12,3 +12,4 @@
 
 - Reference
   - [Configuration](docs/configuration)
+  - [Examples](docs/examples)
