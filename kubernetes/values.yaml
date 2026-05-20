@@ -5,7 +5,6 @@ image:
 
 replicaCount: 1
 
-serverName: "localhost"
 serverPort: 8080
 logLevel: "info"
 

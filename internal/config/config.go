@@ -51,7 +51,6 @@ type OIDCConfig struct {
 // Config is the full application configuration.
 type Config struct {
 	// Server
-	ServerName string
 	ServerPort string
 
 	// Storage
@@ -106,7 +105,6 @@ type Config struct {
 // Load reads the configuration from environment variables.
 func Load() (*Config, error) {
 	cfg := &Config{
-		ServerName:    getEnv("SERVER_NAME", "localhost"),
 		ServerPort:    getEnv("SERVER_PORT", "8080"),
 		StorageType:   StorageType(strings.ToLower(getEnv("STORAGE_TYPE", "local"))),
 		LocalDataPath: getEnv("LOCAL_DATA_PATH", "./webdav-data"),
