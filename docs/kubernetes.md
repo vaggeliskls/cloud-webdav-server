@@ -197,7 +197,7 @@ resources:
     memory: 256Mi
 ```
 
-The server is small (~10 MB binary) and CPU-bound only during large file transfers. Scale `limits.memory` if you expect frequent multi-GiB uploads on the in-memory buffering path (planned to switch to streaming).
+The server is small (~10 MB binary) and CPU-bound only during large file transfers. Uploads stream directly to the storage backend (S3 multipart, GCS resumable, Azure block-blob) without buffering the request body in memory, so even multi-GiB uploads run inside the default `64Mi` request.
 
 ## Replicas
 

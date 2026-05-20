@@ -125,17 +125,26 @@ func (fs *AzureFileSystem) OpenFile(ctx context.Context, name string, flag int, 
 		return &azureFile{fs: fs, name: name, key: dirKey, isDir: true, ctx: ctx}, nil
 	}
 
-	// Write mode.
+	// Write mode — stream directly to Azure via UploadStream + io.Pipe.
 	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
+		pr, pw := io.Pipe()
+		done := make(chan error, 1)
+		go func() {
+			_, err := fs.client.UploadStream(ctx, fs.container, key, pr, nil)
+			// Surface any upload error back to pending Write() callers.
+			_ = pr.CloseWithError(err)
+			done <- err
+		}()
 		return &azureFile{
-			fs:    fs,
-			name:  name,
-			key:   key,
-			isDir: false,
-			write: true,
-			buf:   &bytes.Buffer{},
-			ctx:   ctx,
-			fi:    &s3FileInfo{name: path.Base(name), modTime: time.Now()},
+			fs:         fs,
+			name:       name,
+			key:        key,
+			isDir:      false,
+			write:      true,
+			pw:         pw,
+			uploadDone: done,
+			ctx:        ctx,
+			fi:         &s3FileInfo{name: path.Base(name), modTime: time.Now()},
 		}, nil
 	}
 
@@ -304,28 +313,26 @@ func (fs *AzureFileSystem) copyBlob(ctx context.Context, srcKey, dstKey string) 
 // ---- azureFile -------------------------------------------------------------
 
 type azureFile struct {
-	fs    *AzureFileSystem
-	name  string
-	key   string
-	isDir bool
-	write bool
-	buf   *bytes.Buffer
-	fi    *s3FileInfo
+	fs         *AzureFileSystem
+	name       string
+	key        string
+	isDir      bool
+	write      bool
+	pw         *io.PipeWriter
+	uploadDone chan error
+	fi         *s3FileInfo
 
 	reader *bytes.Reader
 	ctx    context.Context
 }
 
 func (f *azureFile) Close() error {
-	if f.write && f.buf != nil {
-		ctx := f.ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		data := f.buf.Bytes()
-		_, err := f.fs.client.UploadBuffer(ctx, f.fs.container, f.key, data, nil)
-		f.buf = nil
-		return err
+	if f.write && f.pw != nil {
+		// Closing the writer signals EOF to the UploadStream goroutine;
+		// then we wait for it to finish and surface any error.
+		_ = f.pw.Close()
+		f.pw = nil
+		return <-f.uploadDone
 	}
 	return nil
 }
@@ -348,10 +355,10 @@ func (f *azureFile) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *azureFile) Write(p []byte) (int, error) {
-	if !f.write || f.buf == nil {
+	if !f.write || f.pw == nil {
 		return 0, fmt.Errorf("not opened for writing")
 	}
-	return f.buf.Write(p)
+	return f.pw.Write(p)
 }
 
 func (f *azureFile) Readdir(count int) ([]os.FileInfo, error) {

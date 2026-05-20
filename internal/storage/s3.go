@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"golang.org/x/net/webdav"
@@ -32,9 +33,10 @@ type S3Config struct {
 
 // S3FileSystem implements webdav.FileSystem backed by Amazon S3.
 type S3FileSystem struct {
-	client *s3.Client
-	bucket string
-	prefix string // always ends with "/" if non-empty, or is ""
+	client   *s3.Client
+	uploader *transfermanager.Client // streaming/multipart uploader
+	bucket   string
+	prefix   string // always ends with "/" if non-empty, or is ""
 }
 
 // NewS3 creates a new S3FileSystem.
@@ -68,7 +70,12 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3FileSystem, error) {
 		prefix += "/"
 	}
 
-	return &S3FileSystem{client: client, bucket: cfg.Bucket, prefix: prefix}, nil
+	return &S3FileSystem{
+		client:   client,
+		uploader: transfermanager.New(client),
+		bucket:   cfg.Bucket,
+		prefix:   prefix,
+	}, nil
 }
 
 // keyFor converts a WebDAV path to an S3 object key.
@@ -128,15 +135,29 @@ func (fs *S3FileSystem) OpenFile(ctx context.Context, name string, flag int, per
 	}
 
 	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
-		// Write mode: return a write-only file that buffers content.
+		// Write mode: stream directly to S3 via the transfer manager, which
+		// transparently switches to multipart upload past the default threshold.
+		pr, pw := io.Pipe()
+		done := make(chan error, 1)
+		go func() {
+			_, err := fs.uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
+				Bucket: aws.String(fs.bucket),
+				Key:    aws.String(key),
+				Body:   pr,
+			})
+			_ = pr.CloseWithError(err)
+			done <- err
+		}()
 		return &s3File{
-			fs:    fs,
-			name:  name,
-			key:   key,
-			isDir: false,
-			write: true,
-			buf:   &bytes.Buffer{},
-			fi:    &s3FileInfo{name: path.Base(name), size: 0, modTime: time.Now()},
+			fs:         fs,
+			name:       name,
+			key:        key,
+			isDir:      false,
+			write:      true,
+			pw:         pw,
+			uploadDone: done,
+			ctx:        ctx,
+			fi:         &s3FileInfo{name: path.Base(name), size: 0, modTime: time.Now()},
 		}, nil
 	}
 
@@ -316,33 +337,26 @@ func (fs *S3FileSystem) Stat(ctx context.Context, name string) (os.FileInfo, err
 // ---- s3File ----------------------------------------------------------------
 
 type s3File struct {
-	fs    *S3FileSystem
-	name  string
-	key   string
-	isDir bool
-	write bool
-	buf   *bytes.Buffer
-	fi    *s3FileInfo
+	fs         *S3FileSystem
+	name       string
+	key        string
+	isDir      bool
+	write      bool
+	pw         *io.PipeWriter
+	uploadDone chan error
+	fi         *s3FileInfo
 
 	reader *bytes.Reader
 	ctx    context.Context
 }
 
 func (f *s3File) Close() error {
-	if f.write && f.buf != nil {
-		ctx := f.ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		data := f.buf.Bytes()
-		_, err := f.fs.client.PutObject(ctx, &s3.PutObjectInput{
-			Bucket:        aws.String(f.fs.bucket),
-			Key:           aws.String(f.key),
-			Body:          bytes.NewReader(data),
-			ContentLength: aws.Int64(int64(len(data))),
-		})
-		f.buf = nil
-		return err
+	if f.write && f.pw != nil {
+		// Signal EOF to the upload goroutine, wait for completion, and
+		// surface its error (which propagates multipart-abort failures).
+		_ = f.pw.Close()
+		f.pw = nil
+		return <-f.uploadDone
 	}
 	return nil
 }
@@ -365,10 +379,10 @@ func (f *s3File) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *s3File) Write(p []byte) (int, error) {
-	if !f.write || f.buf == nil {
+	if !f.write || f.pw == nil {
 		return 0, fmt.Errorf("not opened for writing")
 	}
-	return f.buf.Write(p)
+	return f.pw.Write(p)
 }
 
 func (f *s3File) Readdir(count int) ([]os.FileInfo, error) {

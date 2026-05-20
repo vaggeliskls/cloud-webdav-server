@@ -121,17 +121,17 @@ func (fs *GCSFileSystem) OpenFile(ctx context.Context, name string, flag int, _ 
 		return &gcsFile{fs: fs, name: name, key: dirKey, isDir: true, ctx: ctx}, nil
 	}
 
-	// Write mode.
+	// Write mode — stream directly to GCS via storage.Writer.
 	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
 		return &gcsFile{
-			fs:    fs,
-			name:  name,
-			key:   key,
-			isDir: false,
-			write: true,
-			buf:   &bytes.Buffer{},
-			ctx:   ctx,
-			fi:    &s3FileInfo{name: path.Base(name), modTime: time.Now()},
+			fs:     fs,
+			name:   name,
+			key:    key,
+			isDir:  false,
+			write:  true,
+			writer: fs.bkt().Object(key).NewWriter(ctx),
+			ctx:    ctx,
+			fi:     &s3FileInfo{name: path.Base(name), modTime: time.Now()},
 		}, nil
 	}
 
@@ -271,27 +271,23 @@ func (fs *GCSFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, er
 // ---- gcsFile ---------------------------------------------------------------
 
 type gcsFile struct {
-	fs    *GCSFileSystem
-	name  string
-	key   string
-	isDir bool
-	write bool
-	buf   *bytes.Buffer
-	fi    *s3FileInfo
+	fs     *GCSFileSystem
+	name   string
+	key    string
+	isDir  bool
+	write  bool
+	writer *storage.Writer
+	fi     *s3FileInfo
 
 	reader *bytes.Reader
 	ctx    context.Context
 }
 
 func (f *gcsFile) Close() error {
-	if f.write && f.buf != nil {
-		data := f.buf.Bytes()
-		w := f.fs.bkt().Object(f.key).NewWriter(f.ctx)
-		if _, err := w.Write(data); err != nil {
-			return err
-		}
-		f.buf = nil
-		return w.Close()
+	if f.write && f.writer != nil {
+		err := f.writer.Close()
+		f.writer = nil
+		return err
 	}
 	return nil
 }
@@ -314,10 +310,10 @@ func (f *gcsFile) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *gcsFile) Write(p []byte) (int, error) {
-	if !f.write || f.buf == nil {
+	if !f.write || f.writer == nil {
 		return 0, fmt.Errorf("not opened for writing")
 	}
-	return f.buf.Write(p)
+	return f.writer.Write(p)
 }
 
 func (f *gcsFile) Readdir(count int) ([]os.FileInfo, error) {
