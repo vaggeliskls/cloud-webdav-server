@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
@@ -102,6 +101,9 @@ func (fs *S3FileSystem) dirKeyFor(name string) string {
 
 // Mkdir creates a directory marker object.
 func (fs *S3FileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode) error {
+	if err := checkMkdir(ctx, fs, name); err != nil {
+		return err
+	}
 	key := fs.dirKeyFor(name)
 	_, err := fs.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(fs.bucket),
@@ -134,7 +136,20 @@ func (fs *S3FileSystem) OpenFile(ctx context.Context, name string, flag int, per
 		return &s3File{fs: fs, name: name, key: dirKey, isDir: true}, nil
 	}
 
-	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
+	// Check for virtual directory (objects sharing this prefix, no marker needed).
+	list, err := fs.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:  aws.String(fs.bucket),
+		Prefix:  aws.String(dirKey),
+		MaxKeys: aws.Int32(1),
+	})
+	if err == nil && len(list.Contents) > 0 {
+		return &s3File{fs: fs, name: name, key: dirKey, isDir: true}, nil
+	}
+
+	// Only O_CREATE/O_TRUNC (PUT, COPY/MOVE destination, LOCK on a new
+	// resource) replace the object. A bare O_RDWR (e.g. PROPPATCH) must not,
+	// or the object would be overwritten with an empty upload.
+	if flag&(os.O_CREATE|os.O_TRUNC) != 0 {
 		// Write mode: stream directly to S3 via the transfer manager, which
 		// transparently switches to multipart upload past the default threshold.
 		pr, pw := io.Pipe()
@@ -454,14 +469,6 @@ func (f *s3File) Stat() (os.FileInfo, error) {
 		return &s3FileInfo{name: path.Base(f.name), isDir: true, modTime: time.Now()}, nil
 	}
 	return nil, fmt.Errorf("no file info available")
-}
-
-func (f *s3File) DeadProps() (map[xml.Name]webdav.Property, error) {
-	return nil, nil
-}
-
-func (f *s3File) Patch(_ []webdav.Proppatch) ([]webdav.Propstat, error) {
-	return nil, nil
 }
 
 // ---- s3FileInfo ------------------------------------------------------------

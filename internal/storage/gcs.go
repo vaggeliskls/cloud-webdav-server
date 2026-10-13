@@ -3,7 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/storage"
 	"golang.org/x/net/webdav"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -86,6 +87,9 @@ func (fs *GCSFileSystem) bkt() *storage.BucketHandle {
 
 // Mkdir creates a directory marker object.
 func (fs *GCSFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode) error {
+	if err := checkMkdir(ctx, fs, name); err != nil {
+		return err
+	}
 	key := fs.dirKeyFor(name)
 	w := fs.bkt().Object(key).NewWriter(ctx)
 	w.ContentType = "application/x-directory"
@@ -122,7 +126,10 @@ func (fs *GCSFileSystem) OpenFile(ctx context.Context, name string, flag int, _ 
 	}
 
 	// Write mode — stream directly to GCS via storage.Writer.
-	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
+	// Only O_CREATE/O_TRUNC (PUT, COPY/MOVE destination, LOCK on a new
+	// resource) replace the object. A bare O_RDWR (e.g. PROPPATCH) must not,
+	// or the object would be overwritten with an empty upload.
+	if flag&(os.O_CREATE|os.O_TRUNC) != 0 {
 		return &gcsFile{
 			fs:     fs,
 			name:   name,
@@ -205,7 +212,7 @@ func (fs *GCSFileSystem) Rename(ctx context.Context, oldName, newName string) er
 		fs.bkt().Object(oldKey).Delete(ctx) //nolint:errcheck
 		return nil
 	}
-	if err != storage.ErrObjectNotExist {
+	if !isGCSNotFound(err) {
 		return err
 	}
 
@@ -377,10 +384,13 @@ func (f *gcsFile) Stat() (os.FileInfo, error) {
 	return &s3FileInfo{name: path.Base(f.name), isDir: f.isDir, modTime: time.Now()}, nil
 }
 
-func (f *gcsFile) DeadProps() (map[xml.Name]webdav.Property, error) {
-	return nil, nil
-}
-
-func (f *gcsFile) Patch(_ []webdav.Proppatch) ([]webdav.Propstat, error) {
-	return nil, nil
+// isGCSNotFound reports whether err means the object does not exist. Some
+// calls (e.g. Copier.Run) return a raw googleapi 404 instead of
+// storage.ErrObjectNotExist.
+func isGCSNotFound(err error) bool {
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return true
+	}
+	var apiErr *googleapi.Error
+	return errors.As(err, &apiErr) && apiErr.Code == 404
 }

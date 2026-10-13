@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -116,7 +117,10 @@ func (w *downloadResponseWriter) WriteHeader(code int) {
 		if !strings.HasPrefix(ct, "text/html") {
 			filename := strings.TrimSuffix(w.path[strings.LastIndex(w.path, "/")+1:], "/")
 			if filename != "" {
-				w.ResponseWriter.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+				// FormatMediaType quotes/escapes the name and uses RFC 2231
+				// encoding for non-ASCII characters.
+				w.ResponseWriter.Header().Set("Content-Disposition",
+					mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 			}
 		}
 	}
