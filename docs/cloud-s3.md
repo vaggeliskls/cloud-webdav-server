@@ -128,4 +128,5 @@ For local dev with MinIO via the bundled compose file, see [Local Development](d
 
 - **No native rename**: WebDAV `MOVE` is implemented as `CopyObject` + `DeleteObject`. Large folder moves multiply by the number of objects.
 - **Directory markers**: empty objects with names ending in `/` represent directories. Standard pattern, supported by all real S3-compatibles.
-- **Multipart uploads**: not yet wired up — large PUTs go through the SDK's default single-shot path. Files >5 GB will fail until streaming/multipart is added.
+- **Streaming uploads**: PUTs are streamed to S3 through the SDK transfer manager, which switches to multipart upload for large files — no local buffering.
+- **Implicit folders**: uploading into a folder that doesn't exist creates it implicitly (see [Configuration → Storage](docs/configuration?id=storage)).

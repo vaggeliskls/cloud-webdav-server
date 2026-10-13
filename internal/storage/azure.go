@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -97,6 +96,9 @@ func (fs *AzureFileSystem) containerClient() *container.Client {
 
 // Mkdir creates an empty directory marker blob.
 func (fs *AzureFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode) error {
+	if err := checkMkdir(ctx, fs, name); err != nil {
+		return err
+	}
 	key := fs.dirKeyFor(name)
 	_, err := fs.client.UploadBuffer(ctx, fs.container, key, nil, nil)
 	return err
@@ -126,7 +128,10 @@ func (fs *AzureFileSystem) OpenFile(ctx context.Context, name string, flag int, 
 	}
 
 	// Write mode — stream directly to Azure via UploadStream + io.Pipe.
-	if flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_CREATE != 0 {
+	// Only O_CREATE/O_TRUNC (PUT, COPY/MOVE destination, LOCK on a new
+	// resource) replace the object. A bare O_RDWR (e.g. PROPPATCH) must not,
+	// or the object would be overwritten with an empty upload.
+	if flag&(os.O_CREATE|os.O_TRUNC) != 0 {
 		pr, pw := io.Pipe()
 		done := make(chan error, 1)
 		go func() {
@@ -432,14 +437,6 @@ func (f *azureFile) Stat() (os.FileInfo, error) {
 		return f.fi, nil
 	}
 	return &s3FileInfo{name: path.Base(f.name), isDir: f.isDir, modTime: time.Now()}, nil
-}
-
-func (f *azureFile) DeadProps() (map[xml.Name]webdav.Property, error) {
-	return nil, nil
-}
-
-func (f *azureFile) Patch(_ []webdav.Proppatch) ([]webdav.Propstat, error) {
-	return nil, nil
 }
 
 // ---- helpers ---------------------------------------------------------------

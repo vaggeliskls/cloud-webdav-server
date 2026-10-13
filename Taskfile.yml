@@ -55,6 +55,14 @@ tasks:
     desc: Install golangci-lint (dev only)
     cmd: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
+  security:
+    desc: Run govulncheck and a Trivy repo scan (mirrors the Security workflow)
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - >-
+        docker run --rm -v "{{.ROOT_DIR}}":/src:ro -w /src aquasec/trivy:latest
+        fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
+
   quality:
     desc: Run linter, vet, and tests (mirrors the CI quality workflow)
     cmds:

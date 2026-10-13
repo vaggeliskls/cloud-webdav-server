@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/net/webdav"
@@ -118,13 +119,18 @@ func (s *Server) Start(ctx context.Context) error {
 // ensureFolders creates missing folders for all storage backends.
 func ensureFolders(ctx context.Context, fs webdav.FileSystem, cfg *config.Config) error {
 	for _, perm := range cfg.FolderPermissions {
-		if _, err := fs.Stat(ctx, perm.Path); err == nil {
-			continue // already exists
+		// Create ancestors first: Mkdir requires the parent to exist.
+		var dir string
+		for _, part := range strings.Split(strings.Trim(perm.Path, "/"), "/") {
+			dir += "/" + part
+			if _, err := fs.Stat(ctx, dir); err == nil {
+				continue // already exists
+			}
+			if err := fs.Mkdir(ctx, dir, 0755); err != nil {
+				return fmt.Errorf("auto-create folder %s: %w", dir, err)
+			}
+			slog.Info("folder ready", "path", dir)
 		}
-		if err := fs.Mkdir(ctx, perm.Path, 0755); err != nil {
-			return fmt.Errorf("auto-create folder %s: %w", perm.Path, err)
-		}
-		slog.Info("folder ready", "path", perm.Path)
 	}
 	return nil
 }

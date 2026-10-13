@@ -11,11 +11,15 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /webdav-server ./cmd/server
 
+# Pre-create the data dir so fresh named volumes inherit non-root ownership.
+RUN mkdir /data
+
 # ---- final image ----
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /webdav-server /webdav-server
+COPY --from=builder --chown=1000:1000 /data /data
 
 # Non-root user (numeric UID required by scratch)
 USER 1000:1000

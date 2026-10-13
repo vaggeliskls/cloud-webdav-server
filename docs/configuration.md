@@ -14,7 +14,9 @@ All configuration is via environment variables. The Helm chart and `docker-compo
 | Variable          | Default          | Description                                 |
 |-------------------|------------------|---------------------------------------------|
 | `STORAGE_TYPE`    | `local`          | `local` · `s3` · `gcs` · `azure`            |
-| `LOCAL_DATA_PATH` | `./webdav-data`  | Root dir when `STORAGE_TYPE=local`          |
+| `LOCAL_DATA_PATH` | `./webdav-data`  | Root dir when `STORAGE_TYPE=local` (set `/data` in Docker; the image ships `/data` owned by the non-root user) |
+
+> **Implicit folders on cloud backends.** On `s3`, `gcs`, and `azure`, a `PUT` (or `COPY`/`MOVE` destination) into a folder that doesn't exist yet succeeds and the folder appears implicitly — object stores have no real directories. The local backend follows RFC 4918 strictly and returns `409 Conflict` instead. `MKCOL` is strict on every backend: it returns `405` if the target exists and `409` if the parent is missing. Regular WebDAV clients (Finder, Windows Explorer, rclone, Cyberduck) create folders before uploading, so this only shows up with raw `curl -T` into nested paths.
 
 ### S3 (`STORAGE_TYPE=s3`)
 
