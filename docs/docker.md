@@ -223,13 +223,12 @@ The Dockerfile is a multi-stage build: a Go builder layer, then a `scratch`-base
 
 ## Image tags
 
-| Tag        | Meaning                                     |
-|------------|---------------------------------------------|
-| `latest`   | Most recent main-branch build               |
-| `vX.Y.Z`   | Tagged release                              |
-| `sha-...`  | Commit-pinned image (immutable)             |
+| Tag      | Meaning                                  |
+|----------|------------------------------------------|
+| `X.Y.Z`  | Tagged release (e.g. `2.1.0`)            |
+| `latest` | Most recent release                      |
 
-Pin to a SHA or version tag in production — never `latest`.
+Images are published only when a GitHub release is created. Pin a version tag in production — never `latest`. The Helm chart does this automatically: each chart version deploys the image of the same version.
 
 ## Logs
 

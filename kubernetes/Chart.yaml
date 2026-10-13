@@ -3,4 +3,5 @@ name: cloud-webdav-server
 description: A WebDAV server with cloud storage backends and flexible authentication
 type: application
 version: 0.2.0
-appVersion: "latest"
+# Overwritten by the release workflow (helm package --app-version).
+appVersion: "2.1.0"
