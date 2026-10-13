@@ -24,8 +24,13 @@ spec:
         fsGroup: 1000
       containers:
         - name: webdav
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: {{ .Values.serverPort }}
           envFrom:
@@ -93,7 +98,7 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           volumeMounts:
-            {{- if and (eq .Values.storage.type "local") .Values.persistence.enabled }}
+            {{- if eq .Values.storage.type "local" }}
             - name: data
               mountPath: /data
             {{- end }}
@@ -105,10 +110,15 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        {{- if and (eq .Values.storage.type "local") .Values.persistence.enabled }}
+        {{- if eq .Values.storage.type "local" }}
         - name: data
+          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "cloud-webdav-server.name" . }}-data
+          {{- else }}
+          # Root filesystem is read-only; ephemeral storage lost on pod restart.
+          emptyDir: {}
+          {{- end }}
         {{- end }}
         {{- if .Values.storage.gcs.serviceAccountSecret }}
         - name: gcs-credentials

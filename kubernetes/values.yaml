@@ -1,7 +1,9 @@
 image:
   repository: ghcr.io/vaggeliskls/cloud-webdav-server
-  tag: latest
-  pullPolicy: Always
+  # Defaults to the chart's appVersion, which each release sets to the
+  # matching image version. Override to pin a different image.
+  tag: ""
+  pullPolicy: IfNotPresent
 
 replicaCount: 1
 

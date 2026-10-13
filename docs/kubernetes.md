@@ -10,6 +10,8 @@ helm install wd oci://ghcr.io/vaggeliskls/charts/cloud-webdav-server --version <
 
 Find published versions on the [chart's GHCR page](https://github.com/vaggeliskls/cloud-webdav-server/pkgs/container/charts%2Fcloud-webdav-server). Always pin `--version` in production — omitting it falls back to whatever Helm resolves as latest.
 
+Each chart version deploys the image of the same version (`image.tag` defaults to the chart's `appVersion`), so pinning `--version` pins the image too. Set `image.tag` only to run a different image than the chart's.
+
 By default the chart deploys with a local-filesystem backend backed by a 10 GiB PVC. Override anything via `--set` flags or a custom `values.yaml`.
 
 ## Pulling and inspecting the chart
