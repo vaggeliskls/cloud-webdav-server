@@ -52,3 +52,40 @@ jobs:
 
       - name: Coverage summary
         run: go tool cover -func=coverage.out
+
+  integration:
+    name: Integration (local, S3, GCS, Azure)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Start storage emulators
+        run: |
+          docker compose -f docker-compose.minio.yml up -d
+          docker compose -f docker-compose.azurite.yml up -d
+          docker compose -f docker-compose.fake-gcs.yml up -d
+          # Init containers create the bucket/container, then exit; fail if any errored.
+          for c in webdav-minio-init webdav-azurite-init webdav-fake-gcs-init; do
+            code=$(docker wait "$c")
+            docker logs "$c"
+            [ "$code" -eq 0 ] || { echo "$c exited with $code"; exit 1; }
+          done
+
+      - name: Integration tests
+        env:
+          CI: "true"
+        run: go test -tags integration -race -count=1 -v ./internal/server/ -run TestBackends
+
+      - name: Emulator logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.minio.yml logs
+          docker compose -f docker-compose.azurite.yml logs
+          docker compose -f docker-compose.fake-gcs.yml logs

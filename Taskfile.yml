@@ -27,6 +27,24 @@ tasks:
     desc: Run all tests
     cmd: go test -race -count=1 ./...
 
+  test-integration:
+    desc: Run integration tests against local storage and all emulators (run `task emulators-up` first)
+    cmd: go test -tags integration -race -count=1 -v ./internal/server/ -run TestBackends
+
+  emulators-up:
+    desc: Start MinIO, Azurite, and fake-gcs-server for integration tests
+    cmds:
+      - task: minio-up
+      - task: azurite-up
+      - task: gcs-up
+
+  emulators-down:
+    desc: Stop all storage emulators
+    cmds:
+      - task: minio-down
+      - task: azurite-down
+      - task: gcs-down
+
   upload:
     desc: 'Upload a file via WebDAV PUT. Usage: task upload FILE=path/to/file [USER=alice:alice123] [URL=http://localhost:8080/files]'
     requires:
