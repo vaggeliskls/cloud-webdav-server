@@ -19,7 +19,8 @@ func main() {
 		if port == "" {
 			port = "8080"
 		}
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/_health", port))
+		// Fixed localhost target; only the port comes from config.
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/_health", port)) //nolint:gosec // G704: not user-controlled
 		if err != nil || resp.StatusCode != http.StatusOK {
 			os.Exit(1)
 		}
