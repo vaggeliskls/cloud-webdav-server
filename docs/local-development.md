@@ -56,6 +56,18 @@ task lint       # golangci-lint
 task quality    # vet + lint + tests + coverage (mirrors CI)
 ```
 
+### Integration tests
+
+The integration suite (`internal/server/integration_test.go`, build tag `integration`) runs the full server against every storage backend and exercises PUT/GET/Range/HEAD/MKCOL/PROPFIND/COPY/MOVE/DELETE, including a multipart-sized upload:
+
+```sh
+task emulators-up       # MinIO + Azurite + fake-gcs-server
+task test-integration   # local, s3, gcs, azure
+task emulators-down
+```
+
+A cloud backend whose emulator isn't running is skipped locally. CI runs the same suite with all emulators and sets `CI=true`, which turns a missing emulator into a failure.
+
 ## Test against a cloud emulator
 
 You can run the same server code against a local emulator instead of a real cloud account — useful for offline iteration and CI integration tests.
