@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -72,7 +73,9 @@ func (h *dirListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasSuffix(urlPath, "/") {
 		fi, err := h.fs.Stat(r.Context(), urlPath)
 		if err == nil && fi.IsDir() {
-			http.Redirect(w, r, urlPath+"/", http.StatusMovedPermanently)
+			// Relative target: http.Redirect resolves it against the request
+			// path and cleans it, so "//host" can never become the Location.
+			http.Redirect(w, r, "./"+url.PathEscape(path.Base(urlPath))+"/", http.StatusMovedPermanently)
 			return
 		}
 	}
