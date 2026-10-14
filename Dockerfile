@@ -26,4 +26,8 @@ USER 1000:1000
 
 EXPOSE 8080
 
+# Uses the binary's built-in probe; scratch has no shell or curl.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["/webdav-server", "--healthcheck"]
+
 ENTRYPOINT ["/webdav-server"]

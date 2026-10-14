@@ -1,8 +1,8 @@
 name: Security
 
 on:
-  schedule:
-    - cron: "0 6 * * 1" # weekly: catch newly published CVEs in unchanged code
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
